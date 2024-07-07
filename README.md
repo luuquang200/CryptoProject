@@ -1,7 +1,3 @@
-Dưới đây là file README để hướng dẫn người dùng chạy file `app_dev.py`:
-
----
-
 # Cryptocurrency Dashboard
 
 This is a Dash application for visualizing cryptocurrency data. Follow the instructions below to set up and run the application.
