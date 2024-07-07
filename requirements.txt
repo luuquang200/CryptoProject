@@ -1,0 +1,17 @@
+plotly
+dash
+stockstats
+dash_bootstrap_components
+requests
+requests-html
+yahoo_fin
+dash_html_components
+dash_table
+dash_core_components
+gunicorn
+werkzeug
+pandas
+python-dotenv
+binance
+pytz
+python-binance
