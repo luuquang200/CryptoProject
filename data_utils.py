@@ -1,6 +1,7 @@
 from binance.client import Client
 import pandas as pd
 import os
+from sklearn.preprocessing import MinMaxScaler
 
 class TimeFrame:
     minute = 'minute'
@@ -59,3 +60,14 @@ class DataUtils:
         df = df[~df.index.duplicated(keep='last')]
 
         return df
+    
+    @staticmethod
+    def get_scaler(pair, df):
+        # Extract the 'close' prices
+        close_prices = df[['close']].values
+        
+        # Create and fit the scaler
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaler.fit(close_prices)
+        
+        return scaler

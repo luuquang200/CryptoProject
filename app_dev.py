@@ -8,9 +8,14 @@ import plotly.graph_objs as go
 from datetime import datetime, timedelta
 from binance.client import Client
 import pandas as pd
+import numpy as np
 import pytz
 from dotenv import load_dotenv
-from utils import DataUtils, TimeFrame
+from keras.models import load_model
+import tensorflow as tf
+from sklearn.preprocessing import MinMaxScaler
+from data_utils import DataUtils, TimeFrame
+
 # Load environment variables từ file .env
 load_dotenv()
 
@@ -162,7 +167,7 @@ app.layout = html.Div(
         dcc.Store(id='xaxis-range', data={'start': None, 'end': None}),  # Store the x-axis range
         dcc.Interval(
             id='interval-component',
-            interval=2*1000,  # in milliseconds 
+            interval=30*1000,  # in milliseconds 
             n_intervals=0
         )
     ],
@@ -181,15 +186,15 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, xaxis_range):
     
     # Fetch new data every 10 seconds
     if n_intervals > 0:
-        global_df = DataUtils.init_df(pair, TimeFrame.minute)
+        global_df = DataUtils.init_df(pair, TimeFrame.day)
     else:
-        global_df = DataUtils.update_df(pair, TimeFrame.minute, global_df)
+        global_df = DataUtils.update_df(pair, TimeFrame.day, global_df)
 
     df = global_df.copy()
     
     # print number of rows
-    print (f"Number of rows: {len(df)}")
-    print (df.tail())
+    print(f"Number of rows: {len(df)}")
+    print(df.tail())
     if df.empty:
         print("Dataframe is empty!")
     
@@ -204,7 +209,7 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, xaxis_range):
     data = []
     # Selecting graph type
     if chart_name == "Line":
-        data.append(go.Scatter(x=df.index, y=df['close'], mode='lines', name='close'))
+        data.append(go.Scatter(x=df.index, y=df['close'], mode='lines', name='close', line=dict(color='blue')))
 
     elif chart_name == "Candlestick":
         data.append(go.Candlestick(x=df.index,
@@ -242,6 +247,37 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, xaxis_range):
                 x=list(close_ma_100.index), y=list(close_ma_100), name="100 Days"
             ),
         ])
+    
+    # Load the LSTM model
+    # model_lstm = load_model("LSTM.keras", compile=False)
+    # model_lstm.compile(optimizer='adam', loss='mean_squared_error')
+
+    # Load a SavedModel (even if TensorFlow versions differ)
+    model_lstm = tf.saved_model.load('LSTM.keras')
+    
+    scaler = MinMaxScaler(feature_range=(0, 1))  # Adjust this according to your scaling approach
+    scaled_data = scaler.fit_transform(df['close'].values.reshape(-1, 1))
+
+    # Make future predictions until December 2025
+    future_dates = pd.date_range(start=df.index.max() + timedelta(days=1), end='2025-12-31', freq='B')
+    future_predictions = []
+
+    # Start with the last 60 days of data
+    last_60_days = scaled_data[-60:].reshape(1, 60, 1)
+
+    for date in future_dates:
+        predicted_price = model_lstm.predict(last_60_days)
+        future_predictions.append(predicted_price[0, 0])
+        print(f"Predicted price for {date}: {predicted_price[0, 0]}")
+        # Add the predicted price to the input data and maintain the shape
+        predicted_price_reshaped = predicted_price.reshape(1, 1, 1)
+        last_60_days = np.append(last_60_days[:, 1:, :], predicted_price_reshaped, axis=1)
+
+    # Inverse transform the predicted prices
+    future_predictions = scaler.inverse_transform(np.array(future_predictions).reshape(-1, 1)).flatten()
+
+    # Add the prediction line to the graph
+    data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='LSTM Prediction', line=dict(color='red')))
 
     fig = {
         'data': data,
