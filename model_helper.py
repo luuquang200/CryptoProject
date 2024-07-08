@@ -17,8 +17,10 @@ class ModelHelper:
             return model
         # elif self.model_type == 'XGBoost':
         #     pass
-        # elif self.model_type == 'RNN':
-        #     pass
+        elif self.model_type == 'RNN':
+            model = load_model('RNN.keras', compile=False)
+            model.compile(optimizer='adam', loss='mean_squared_error')
+            return model
         else:
             raise ValueError(f"Model type '{self.model_type}' not supported.")
 
