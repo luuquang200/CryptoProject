@@ -4,7 +4,6 @@ stockstats
 dash_bootstrap_components
 requests
 requests-html
-yahoo_fin
 dash_html_components
 dash_table
 dash_core_components
@@ -15,3 +14,7 @@ python-dotenv
 binance
 pytz
 python-binance
+scikit-learn
+tensorflow==2.16.1
+keras==3.3.3
+xgboost

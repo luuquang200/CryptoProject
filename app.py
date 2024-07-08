@@ -10,7 +10,7 @@ from binance.client import Client
 import pandas as pd
 import pytz
 from dotenv import load_dotenv
-from utils import DataUtils, TimeFrame
+from data_utils import DataUtils, TimeFrame
 # Load environment variables from .env file
 load_dotenv()
 
