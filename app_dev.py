@@ -15,6 +15,7 @@ from keras.models import load_model
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from data_utils import DataUtils, TimeFrame
+import plotly.graph_objs as go
 
 # Load environment variables từ file .env
 load_dotenv()
@@ -167,7 +168,7 @@ app.layout = html.Div(
         dcc.Store(id='xaxis-range', data={'start': None, 'end': None}),  # Store the x-axis range
         dcc.Interval(
             id='interval-component',
-            interval=30*1000,  # in milliseconds 
+            interval=3*1000,  # in milliseconds 
             n_intervals=0
         )
     ],
@@ -186,31 +187,60 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, xaxis_range):
     
     # Fetch new data every 10 seconds
     if n_intervals > 0:
-        global_df = DataUtils.init_df(pair, TimeFrame.day)
-    else:
         global_df = DataUtils.update_df(pair, TimeFrame.day, global_df)
-
+    else:
+        global_df = DataUtils.init_df(pair, TimeFrame.day)
+    
     df = global_df.copy()
     
-    # print number of rows
-    print(f"Number of rows: {len(df)}")
+    # Kiểm tra số lượng dòng
+    print(f"---> Number of rows: {len(df)}")
     print(df.tail())
     if df.empty:
         print("Dataframe is empty!")
+        return None
     
     # Sorting the data
     df.sort_index(inplace=True)
-    
-    if xaxis_range['start'] is None or xaxis_range['end'] is None:
-        x_range = [min(df.index), max(df.index)]
-    else:
-        x_range = [xaxis_range['start'], xaxis_range['end']]
 
+    # Đảm bảo có ít nhất 60 ngày dữ liệu
+    if len(df) < 60:
+        print("Not enough data for prediction!")
+        return None
+    
+    # Load mô hình LSTM
+    model_lstm = load_model('LSTM.keras', compile=False)
+    model_lstm.compile(optimizer='adam', loss='mean_squared_error')
+    
+    # Chuẩn hóa dữ liệu
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_data = scaler.fit_transform(df['close'].values.reshape(-1, 1))
+    print(f"Size of scaled_data: {scaled_data.shape}")
+
+    # Bắt đầu với 60 ngày cuối cùng của dữ liệu để dự đoán
+    last_60_days = scaled_data[-60:].reshape(1, 60, 1)
+
+    # Dự đoán giá cho đến tháng 12 năm 2025
+    future_dates = pd.date_range(start=df.index.max() + timedelta(days=1), end='2024-7-31', freq='B')
+    future_predictions = []
+
+    for date in future_dates:
+        predicted_price = model_lstm.predict(last_60_days)
+        future_predictions.append(predicted_price[0, 0])
+        print(f"Predicted price for {date}: {predicted_price[0, 0]}")
+        # Thêm giá dự đoán vào dữ liệu đầu vào và duy trì hình dạng
+        predicted_price_reshaped = predicted_price.reshape(1, 1, 1)
+        last_60_days = np.append(last_60_days[:, 1:, :], predicted_price_reshaped, axis=1)
+
+    # Inverse transform the predicted prices
+    future_predictions = scaler.inverse_transform(np.array(future_predictions).reshape(-1, 1)).flatten()
+
+    # Thêm đường dự đoán vào biểu đồ
     data = []
+
     # Selecting graph type
     if chart_name == "Line":
         data.append(go.Scatter(x=df.index, y=df['close'], mode='lines', name='close', line=dict(color='blue')))
-
     elif chart_name == "Candlestick":
         data.append(go.Candlestick(x=df.index,
                                    open=df['open'],
@@ -247,34 +277,6 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, xaxis_range):
                 x=list(close_ma_100.index), y=list(close_ma_100), name="100 Days"
             ),
         ])
-    
-    # Load the LSTM model
-    # model_lstm = load_model("LSTM.keras", compile=False)
-    # model_lstm.compile(optimizer='adam', loss='mean_squared_error')
-
-    # Load a SavedModel (even if TensorFlow versions differ)
-    model_lstm = tf.saved_model.load('LSTM.keras')
-    
-    scaler = MinMaxScaler(feature_range=(0, 1))  # Adjust this according to your scaling approach
-    scaled_data = scaler.fit_transform(df['close'].values.reshape(-1, 1))
-
-    # Make future predictions until December 2025
-    future_dates = pd.date_range(start=df.index.max() + timedelta(days=1), end='2025-12-31', freq='B')
-    future_predictions = []
-
-    # Start with the last 60 days of data
-    last_60_days = scaled_data[-60:].reshape(1, 60, 1)
-
-    for date in future_dates:
-        predicted_price = model_lstm.predict(last_60_days)
-        future_predictions.append(predicted_price[0, 0])
-        print(f"Predicted price for {date}: {predicted_price[0, 0]}")
-        # Add the predicted price to the input data and maintain the shape
-        predicted_price_reshaped = predicted_price.reshape(1, 1, 1)
-        last_60_days = np.append(last_60_days[:, 1:, :], predicted_price_reshaped, axis=1)
-
-    # Inverse transform the predicted prices
-    future_predictions = scaler.inverse_transform(np.array(future_predictions).reshape(-1, 1)).flatten()
 
     # Add the prediction line to the graph
     data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='LSTM Prediction', line=dict(color='red')))
@@ -288,7 +290,7 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, xaxis_range):
             paper_bgcolor=colors['background'],
             font={'color': colors['text']},
             xaxis=dict(
-                range=x_range,
+                range=[df.index.min(), future_dates.max()],
                 title='Time',
                 tickformat='%Y-%m-%d %H:%M',
                 rangeslider=dict( visible=False ),
