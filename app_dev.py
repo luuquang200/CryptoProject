@@ -174,7 +174,8 @@ app.layout = html.Div(
 # Initialize a global variable to store historical data
 global_df = pd.DataFrame()
 
-model_helper = ModelHelper(model_type='LSTM')
+# model_helper = ModelHelper(model_type='LSTM')
+model_helper = ModelHelper(model_type='RNN')
 
 @app.callback(
     [Output("graph", "figure"), Output("live_price", "figure"), Output('xaxis-range', 'data')],
