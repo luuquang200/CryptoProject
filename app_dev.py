@@ -175,7 +175,8 @@ app.layout = html.Div(
 global_df = pd.DataFrame()
 
 # model_helper = ModelHelper(model_type='LSTM')
-model_helper = ModelHelper(model_type='RNN')
+# model_helper = ModelHelper(model_type='RNN')
+model_helper = ModelHelper(model_type='XGBoost')
 
 @app.callback(
     [Output("graph", "figure"), Output("live_price", "figure"), Output('xaxis-range', 'data')],
@@ -192,6 +193,8 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, xaxis_range):
         global_df = DataUtils.init_df(pair, TimeFrame.day)
     
     df = global_df.copy()
+    print("\n....> Data: ")
+    print(df)
     
     if df.empty:
         return {}, {}, xaxis_range
@@ -199,9 +202,9 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, xaxis_range):
     # Sorting the data
     df.sort_index(inplace=True)
 
-    # Process data and predict prices
-    df, future_dates, future_predictions = model_helper.process_and_predict(df, num_days=30)
-
+    # Generate predictions
+    predictions, future_dates, future_predictions = model_helper.process_and_predict(df, num_days= 30)
+    
     # Add actual and predicted prices to the graph
     data = []
     if chart_name == "Line":
@@ -213,7 +216,7 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, xaxis_range):
         data.append(go.Scatter(x=df.index, y=df['close'], mode='lines', name='Close', line=dict(color='blue')))
 
     # Add current predicted prices
-    data.append(go.Scatter(x=df.index, y=df["Predictions"], mode='lines', name='Predicted', line=dict(color='green')))
+    data.append(go.Scatter(x=df.index, y=predictions, mode='lines', name='Predicted', line=dict(color='green')))
     
     # Add future predicted prices
     data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='red')))
