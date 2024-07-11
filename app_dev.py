@@ -73,7 +73,7 @@ app.layout = html.Div(
                                 value="BTCUSDT",
                                 placeholder="Select cryptocurrency pair",
                             ),
-                            width={"size": 3, "offset": 2},
+                            width={"size": 3, "offset": 1},
                         ),
                         dbc.Col(  # Graph type
                             dcc.Dropdown(
@@ -98,6 +98,21 @@ app.layout = html.Div(
                                     {"label": "XGBoost", "value": "XGBoost"},
                                 ],
                                 value="XGBoost",
+                                style={"color": "#000000"},
+                            ),
+                            width={"size": 2},
+                        ),
+                        dbc.Col(  # Display days
+                            dcc.Dropdown(
+                                id="display_days",
+                                options=[
+                                    {"label": "1 month", "value": 30},
+                                    {"label": "3 months", "value": 90},
+                                    {"label": "6 months", "value": 180},
+                                    {"label": "100 days", "value": 100},
+                                    {"label": "All", "value": "All"},
+                                ],
+                                value=100,
                                 style={"color": "#000000"},
                             ),
                             width={"size": 2},
@@ -179,11 +194,13 @@ app.layout = html.Div(
         dcc.Store(id='xaxis-range', data={'start': None, 'end': None}),  # Store the x-axis range
         dcc.Interval(
             id='interval-component',
-            interval=5*1000,  # in milliseconds 
+            interval=3*1000,  # in milliseconds 
             n_intervals=0
         )
     ],
 )
+
+
 # Initialize a global variable to store historical data
 global_df = pd.DataFrame()
 
@@ -204,9 +221,9 @@ def switch_model(model_type):
 @app.callback(
     [Output("graph", "figure"), Output("live_price", "figure"), Output('xaxis-range', 'data')],
     [Input("submit-button-state", "n_clicks"), Input('interval-component', 'n_intervals')],
-    [State("crypto_pair", "value"), State("chart", "value"), State("model_type", "value"), State('xaxis-range', 'data')]
+    [State("crypto_pair", "value"), State("chart", "value"), State("model_type", "value"), State("display_days", "value"), State('xaxis-range', 'data')]
 )
-def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, xaxis_range):
+def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display_days, xaxis_range):
     global global_df
     
     # Update model_helper based on selected model type
@@ -231,13 +248,15 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, xaxis_r
     # Sorting the data
     df.sort_index(inplace=True)
 
+    # Limit the data based on the selected display_days
+    if display_days != "All":
+        df_display = df[-int(display_days):]
+    else:
+        df_display = df
+
     # Generate predictions
     predictions, future_dates, future_predictions = model_helper.process_and_predict(df, num_days=30)
-
-    # Limit the data to the last 100 days
-    display_days = 100
-    df_display = df[-display_days:]
-
+    
     # Add actual and predicted prices to the graph
     data = []
     if chart_name == "Line":
@@ -249,8 +268,11 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, xaxis_r
         data.append(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
 
     # Add current predicted prices
-    data.append(go.Scatter(x=df_display.index, y=predictions[-display_days:], mode='lines', name='Predicted', line=dict(color='green')))
-    
+    if display_days != "All":
+        data.append(go.Scatter(x=df_display.index, y=predictions[-int(display_days):], mode='lines', name='Predicted', line=dict(color='green')))
+    else:
+        data.append(go.Scatter(x=df_display.index, y=predictions, mode='lines', name='Predicted', line=dict(color='green')))
+
     # Add future predicted prices
     data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='red')))
 
