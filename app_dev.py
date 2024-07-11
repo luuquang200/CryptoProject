@@ -213,10 +213,13 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, xaxis_r
     model_helper = switch_model(model_type)
     
     # Fetch new data
-    if n_intervals > 0:
-        global_df = DataUtils.update_df(pair, TimeFrame.day, global_df)
-    else:
+    if global_df.empty:
+        print("Initializing data...")
         global_df = DataUtils.init_df(pair, TimeFrame.day)
+    else:
+        if n_intervals > 0:
+            print("Updating data...")
+            global_df = DataUtils.update_df(pair, TimeFrame.day, global_df)
     
     df = global_df.copy()
     print("\n....> Data: ")
@@ -229,20 +232,24 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, xaxis_r
     df.sort_index(inplace=True)
 
     # Generate predictions
-    predictions, future_dates, future_predictions = model_helper.process_and_predict(df, num_days= 30)
-    
+    predictions, future_dates, future_predictions = model_helper.process_and_predict(df, num_days=30)
+
+    # Limit the data to the last 100 days
+    display_days = 100
+    df_display = df[-display_days:]
+
     # Add actual and predicted prices to the graph
     data = []
     if chart_name == "Line":
-        data.append(go.Scatter(x=df.index, y=df['close'], mode='lines', name='Close', line=dict(color='blue')))
+        data.append(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
     elif chart_name == "Candlestick":
-        data.append(go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'], name='Candlestick'))
+        data.append(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
     elif chart_name == "Line and Candlestick":
-        data.append(go.Candlestick(x=df.index, open=df['open'], high=df['high'], low=df['low'], close=df['close'], name='Candlestick'))
-        data.append(go.Scatter(x=df.index, y=df['close'], mode='lines', name='Close', line=dict(color='blue')))
+        data.append(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
+        data.append(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
 
     # Add current predicted prices
-    data.append(go.Scatter(x=df.index, y=predictions, mode='lines', name='Predicted', line=dict(color='green')))
+    data.append(go.Scatter(x=df_display.index, y=predictions[-display_days:], mode='lines', name='Predicted', line=dict(color='green')))
     
     # Add future predicted prices
     data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='red')))
@@ -256,7 +263,7 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, xaxis_r
             paper_bgcolor=colors['background'],
             font={'color': colors['text']},
             xaxis=dict(
-                range=[df.index.min(), future_dates.max()],
+                range=[df_display.index.min(), future_dates.max()],
                 title='Time',
                 tickformat='%Y-%m-%d %H:%M',
                 rangeslider=dict(visible=False),
@@ -290,7 +297,7 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, xaxis_r
     }
 
     # Update xaxis range data
-    xaxis_range = {'start': df.index.min(), 'end': future_dates.max()}
+    xaxis_range = {'start': df_display.index.min(), 'end': future_dates.max()}
     
     return fig, live_price_fig, xaxis_range
 

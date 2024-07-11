@@ -42,7 +42,10 @@ class ModelHelper:
         return scaler, last_60_days
 
     def predict_future_prices(self, last_60_days, scaler, num_days=30):
-        future_dates = pd.date_range(start=datetime.today() + timedelta(days=1) , periods=num_days, freq='B')
+        start_date = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
+        # start_date += timedelta(days=1)
+
+        future_dates = pd.date_range(start=start_date, periods=num_days, freq='D')
         future_predictions = []
 
         for _ in range(num_days):
