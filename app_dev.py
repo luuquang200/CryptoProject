@@ -73,7 +73,7 @@ app.layout = html.Div(
                                 value="BTCUSDT",
                                 placeholder="Select cryptocurrency pair",
                             ),
-                            width={"size": 3, "offset": 3},
+                            width={"size": 3, "offset": 2},
                         ),
                         dbc.Col(  # Graph type
                             dcc.Dropdown(
@@ -87,7 +87,20 @@ app.layout = html.Div(
                                 value="Line",
                                 style={"color": "#000000"},
                             ),
-                            width={"size": 3},
+                            width={"size": 2},
+                        ),
+                        dbc.Col(  # Model type
+                            dcc.Dropdown(
+                                id="model_type",
+                                options=[
+                                    {"label": "LSTM", "value": "LSTM"},
+                                    {"label": "RNN", "value": "RNN"},
+                                    {"label": "XGBoost", "value": "XGBoost"},
+                                ],
+                                value="XGBoost",
+                                style={"color": "#000000"},
+                            ),
+                            width={"size": 2},
                         ),
                         dbc.Col(  # Button
                             dbc.Button(
@@ -96,7 +109,7 @@ app.layout = html.Div(
                                 className="mr-1",
                                 n_clicks=0,
                             ),
-                            width={"size": 2},
+                            width={"size": 1},
                         ),
                     ]
                 )
@@ -174,17 +187,30 @@ app.layout = html.Div(
 # Initialize a global variable to store historical data
 global_df = pd.DataFrame()
 
-# model_helper = ModelHelper(model_type='LSTM')
-# model_helper = ModelHelper(model_type='RNN')
-model_helper = ModelHelper(model_type='XGBoost')
+LSTM_model = ModelHelper(model_type='LSTM')
+RNN_model = ModelHelper(model_type='RNN')
+XGBoost_model = ModelHelper(model_type='XGBoost')
+
+def switch_model(model_type):
+    if model_type == 'LSTM':
+        return LSTM_model
+    elif model_type == 'RNN':
+        return RNN_model
+    elif model_type == 'XGBoost':
+        return XGBoost_model
+    else:
+        raise ValueError(f"Model type '{model_type}' not supported.")
 
 @app.callback(
     [Output("graph", "figure"), Output("live_price", "figure"), Output('xaxis-range', 'data')],
     [Input("submit-button-state", "n_clicks"), Input('interval-component', 'n_intervals')],
-    [State("crypto_pair", "value"), State("chart", "value"), State('xaxis-range', 'data')]
+    [State("crypto_pair", "value"), State("chart", "value"), State("model_type", "value"), State('xaxis-range', 'data')]
 )
-def graph_generator(n_clicks, n_intervals, pair, chart_name, xaxis_range):
+def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, xaxis_range):
     global global_df
+    
+    # Update model_helper based on selected model type
+    model_helper = switch_model(model_type)
     
     # Fetch new data
     if n_intervals > 0:

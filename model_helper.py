@@ -42,7 +42,7 @@ class ModelHelper:
         return scaler, last_60_days
 
     def predict_future_prices(self, last_60_days, scaler, num_days=30):
-        future_dates = pd.date_range(start=datetime.today(), periods=num_days, freq='B')
+        future_dates = pd.date_range(start=datetime.today() + timedelta(days=1) , periods=num_days, freq='B')
         future_predictions = []
 
         for _ in range(num_days):
@@ -81,6 +81,9 @@ class ModelHelper:
 
     # Main function
     def process_and_predict(self, df, num_days=30):
+        print(f"Processing data for {self.model_type} model")
+        # Print last 5 rows of the dataframe
+        print(df.tail())
         if self.model_type == 'XGBoost':
             return self.generate_predictions(df, self.model)
         else:
@@ -89,7 +92,9 @@ class ModelHelper:
                 return df, None, None, None
             
             predictions, last_60_days_for_future = self.make_predictions(df, scaler)
-            future_dates, future_predictions = self.predict_future_prices(last_60_days_for_future, scaler, num_days=num_days)
+            future_dates, future_predictions = self.predict_future_prices(last_60_days, scaler, num_days=num_days)
+            # Print the first 5 predictions
+            print(f"First 5 predictions: {future_predictions[:5]}")
             return predictions, future_dates, future_predictions
     
     # Xgboost     
@@ -166,6 +171,7 @@ class ModelHelper:
         future_predictions = []
 
         last_known_data = df.iloc[-1]
+        print(f"Last known data: {last_known_data}")
 
         current_date = df.index[-1] + pd.Timedelta(days=1)
         end_date = future_dates[-1]
@@ -198,5 +204,5 @@ class ModelHelper:
             # Update the last known data
             last_known_data = df.iloc[-1]
             current_date += pd.Timedelta(days=1)
-
+        print(f"First 5 predictions: {future_predictions[:5]}")
         return y_pred, future_dates, future_predictions
