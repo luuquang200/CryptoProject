@@ -81,6 +81,9 @@ class ModelHelper:
 
     # Main function
     def process_and_predict(self, df, num_days=30):
+        print(f"Processing data for {self.model_type} model")
+        # Print last 5 rows of the dataframe
+        print(df.tail())
         if self.model_type == 'XGBoost':
             return self.generate_predictions(df, self.model)
         else:
@@ -90,6 +93,8 @@ class ModelHelper:
             
             predictions, last_60_days_for_future = self.make_predictions(df, scaler)
             future_dates, future_predictions = self.predict_future_prices(last_60_days_for_future, scaler, num_days=num_days)
+            # Print the first 5 predictions
+            print(f"First 5 predictions: {future_predictions[:5]}")
             return predictions, future_dates, future_predictions
     
     # Xgboost     
@@ -198,5 +203,5 @@ class ModelHelper:
             # Update the last known data
             last_known_data = df.iloc[-1]
             current_date += pd.Timedelta(days=1)
-
+        print(f"First 5 predictions: {future_predictions[:5]}")
         return y_pred, future_dates, future_predictions

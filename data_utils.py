@@ -40,7 +40,7 @@ class DataUtils:
         elif timeframe == TimeFrame.hour:
             return DataUtils.get_historical_klines(symbol, Client.KLINE_INTERVAL_1HOUR, "1 days ago UTC")
         elif timeframe == TimeFrame.day:
-            return DataUtils.get_historical_klines(symbol, Client.KLINE_INTERVAL_1DAY, "500 days ago UTC")
+            return DataUtils.get_historical_klines(symbol, Client.KLINE_INTERVAL_1DAY, "100 days ago UTC")
         else:
             raise ValueError("Invalid timeframe")
         
