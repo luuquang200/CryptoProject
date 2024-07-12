@@ -84,7 +84,7 @@ app.layout = html.Div(
                                     {"label": "line and candlestick", "value": "Line and Candlestick"},
                                     {"label": "sma", "value": "SMA"},
                                 ],
-                                value="Line",
+                                value="Candlestick",
                                 style={"color": "#000000"},
                             ),
                             width={"size": 2},
@@ -192,6 +192,7 @@ app.layout = html.Div(
             ]
         ),
         dcc.Store(id='xaxis-range', data={'start': None, 'end': None}),  # Store the x-axis range
+        dcc.Store(id='selected-pair', data='BTCUSDT'),
         dcc.Interval(
             id='interval-component',
             interval=3*1000,  # in milliseconds 
@@ -218,17 +219,22 @@ def switch_model(model_type):
     else:
         raise ValueError(f"Model type '{model_type}' not supported.")
 
+
 @app.callback(
-    [Output("graph", "figure"), Output("live_price", "figure"), Output('xaxis-range', 'data')],
+    [Output("graph", "figure"), Output("live_price", "figure"), Output('xaxis-range', 'data'), Output('selected-pair', 'data')],
     [Input("submit-button-state", "n_clicks"), Input('interval-component', 'n_intervals')],
-    [State("crypto_pair", "value"), State("chart", "value"), State("model_type", "value"), State("display_days", "value"), State('xaxis-range', 'data')]
+    [State("crypto_pair", "value"), State("chart", "value"), State("model_type", "value"), State("display_days", "value"), State('xaxis-range', 'data'), State('selected-pair', 'data')]
 )
-def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display_days, xaxis_range):
+def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display_days, xaxis_range, selected_pair):
     global global_df
-    
+
+    # Reset global_df if the selected pair has changed
+    if pair != selected_pair:
+        global_df = pd.DataFrame()
+
     # Update model_helper based on selected model type
     model_helper = switch_model(model_type)
-    
+
     # Fetch new data
     if global_df.empty:
         print("Initializing data...")
@@ -237,14 +243,14 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
         if n_intervals > 0:
             print("Updating data...")
             global_df = DataUtils.update_df(pair, TimeFrame.day, global_df)
-    
+
     df = global_df.copy()
     print("\n....> Data: ")
     print(df)
-    
+
     if df.empty:
-        return {}, {}, xaxis_range
-    
+        return {}, {}, xaxis_range, pair
+
     # Sorting the data
     df.sort_index(inplace=True)
 
@@ -256,7 +262,7 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
 
     # Generate predictions
     predictions, future_dates, future_predictions = model_helper.process_and_predict(df, num_days=30)
-    
+
     # Add actual and predicted prices to the graph
     data = []
     if chart_name == "Line":
@@ -269,12 +275,12 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
 
     # Add current predicted prices
     if display_days != "All":
-        data.append(go.Scatter(x=df_display.index, y=predictions[-int(display_days):], mode='lines', name='Predicted', line=dict(color='green')))
+        data.append(go.Scatter(x=df_display.index, y=predictions[-int(display_days):], mode='lines', name='Predicted', line=dict(color='purple')))
     else:
-        data.append(go.Scatter(x=df_display.index, y=predictions, mode='lines', name='Predicted', line=dict(color='green')))
+        data.append(go.Scatter(x=df_display.index, y=predictions, mode='lines', name='Predicted', line=dict(color='purple')))
 
     # Add future predicted prices
-    data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='red')))
+    data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='yellow')))
 
     fig = {
         'data': data,
@@ -293,7 +299,7 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
             yaxis={'title': 'Price'},
         )
     }
-    
+
     # Live price figure
     live_price_fig = {
         "data": [
@@ -302,7 +308,7 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
                 value=float(df['close'].iloc[-1]),
                 number={
                     "prefix": "$",
-                    "valueformat": ".2f"  
+                    "valueformat": ".2f"
                 },
                 delta={
                     "position": "bottom",
@@ -320,8 +326,8 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
 
     # Update xaxis range data
     xaxis_range = {'start': df_display.index.min(), 'end': future_dates.max()}
-    
-    return fig, live_price_fig, xaxis_range
+
+    return fig, live_price_fig, xaxis_range, pair
 
 if __name__ == "__main__":
     app.run_server(debug=True)
