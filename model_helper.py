@@ -43,7 +43,7 @@ class ModelHelper:
 
     def predict_future_prices(self, last_60_days, scaler, num_days=30):
         start_date = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
-        # start_date += timedelta(days=1)
+        start_date += timedelta(days=1)
 
         future_dates = pd.date_range(start=start_date, periods=num_days, freq='D')
         future_predictions = []
