@@ -22,7 +22,7 @@ load_dotenv()
 colors = {"background": "#191d21", "text": "#ffffff"}
 
 # List of crypto pairs to display
-crypto_pairs = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "ADAUSDT"]
+crypto_pairs = ["BTCUSDT", "ETHUSDT", "BNBUSDT", "XRPUSDT", "SOLUSDT"]
 
 external_stylesheets = [dbc.themes.SLATE]
 
@@ -82,7 +82,6 @@ app.layout = html.Div(
                                     {"label": "line", "value": "Line"},
                                     {"label": "candlestick", "value": "Candlestick"},
                                     {"label": "line and candlestick", "value": "Line and Candlestick"},
-                                    {"label": "sma", "value": "SMA"},
                                 ],
                                 value="Candlestick",
                                 style={"color": "#000000"},
@@ -97,7 +96,7 @@ app.layout = html.Div(
                                     {"label": "RNN", "value": "RNN"},
                                     {"label": "XGBoost", "value": "XGBoost"},
                                 ],
-                                value="XGBoost",
+                                value="LSTM",
                                 style={"color": "#000000"},
                             ),
                             width={"size": 2},
@@ -269,6 +268,10 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
         data.append(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
     elif chart_name == "Candlestick":
         data.append(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
+        # add mode markers+text to show the value of the last close price
+        close_value = float(df_display['close'].iloc[-1])  # Convert the string to float before formatting
+        data.append(go.Scatter(x=[df_display.index[-1]], y=[close_value], mode='markers+text', name='Close Value',
+                            text=[f"${close_value:.2f}"], textposition="top right", marker=dict(color='white')))
     elif chart_name == "Line and Candlestick":
         data.append(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
         data.append(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
@@ -281,7 +284,9 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
 
     # Add future predicted prices
     data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='yellow')))
-
+    # add mode markers+text to show the value of the first future prediction
+    data.append(go.Scatter(x=[future_dates[0]], y=[future_predictions[0]], mode='markers+text', name='Future Prediction Value',
+                           text=[f"${future_predictions[0]:.2f}"], textposition="top right", marker=dict(color='yellow')))
     fig = {
         'data': data,
         'layout': go.Layout(
