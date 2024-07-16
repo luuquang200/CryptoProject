@@ -1,12 +1,9 @@
-
 import pandas as pd
 import numpy as np
 from keras.models import load_model
 from datetime import datetime, timedelta
 from sklearn.preprocessing import MinMaxScaler
 import xgboost as xgb
-import plotly.graph_objects as go
-import pandas as pd
 import pandas_ta as ta
 
 class ModelHelper:
@@ -27,21 +24,32 @@ class ModelHelper:
             model = load_model('RNN.keras', compile=False)
             model.compile(optimizer='adam', loss='mean_squared_error')
             return model
+        elif self.model_type == 'Transformer':
+            model = load_model('Transformer.keras', compile=False)
+            model.compile(optimizer='adam', loss='mean_squared_error')
+            return model
         else:
             raise ValueError(f"Model type '{self.model_type}' not supported.")
 
-    # LSTM and RNN
+    # LSTM, RNN, and Transformer
     def preprocess_data(self, df):
-        # Ensure at least 60 days of data
-        if len(df) < 60:
+        print(f"Preprocessing data for {self.model_type} model")
+        # Ensure at least 60 days of data for LSTM/RNN and 8 days for Transformer
+        min_days = 60 if self.model_type in ['LSTM', 'RNN'] else 8
+        if len(df) < min_days:
             return None, None
 
         scaler = MinMaxScaler(feature_range=(0, 1))
         scaled_data = scaler.fit_transform(df['close'].values.reshape(-1, 1))
-        last_60_days = scaled_data[-60:].reshape(1, 60, 1)
-        return scaler, last_60_days
 
-    def predict_future_prices(self, last_60_days, scaler, num_days=30):
+        if self.model_type in ['LSTM', 'RNN']:
+            last_days = scaled_data[-60:].reshape(1, 60, 1)
+        elif self.model_type == 'Transformer':
+            last_days = scaled_data[-8:].reshape(1, 8, 1)
+
+        return scaler, last_days
+
+    def predict_future_prices(self, last_days, scaler, num_days=30):
         start_date = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
         start_date += timedelta(days=1)
 
@@ -49,24 +57,31 @@ class ModelHelper:
         future_predictions = []
 
         for _ in range(num_days):
-            predicted_price = self.model.predict(last_60_days)
+            predicted_price = self.model.predict(last_days)
             future_predictions.append(predicted_price[0, 0])
             predicted_price_reshaped = predicted_price.reshape(1, 1, 1)
-            last_60_days = np.append(last_60_days[:, 1:, :], predicted_price_reshaped, axis=1)
+            last_days = np.append(last_days[:, 1:, :], predicted_price_reshaped, axis=1)
 
         future_predictions = scaler.inverse_transform(np.array(future_predictions).reshape(-1, 1)).flatten()
         return future_dates, future_predictions
 
     def make_predictions(self, df, scaler):
-        # Ensure at least 60 days of data
-        if len(df) < 60:
+        print(f"Making predictions for {self.model_type} model")
+        # Ensure at least 60 days of data for LSTM/RNN and 8 days for Transformer
+        min_days = 60 if self.model_type in ['LSTM', 'RNN'] else 8
+        if len(df) < min_days:
             return df, None
 
         # Prepare data for prediction
         scaled_data = scaler.transform(df['close'].values.reshape(-1, 1))
         X_test = []
-        for i in range(60, len(scaled_data)):
-            X_test.append(scaled_data[i-60:i, 0])
+        if self.model_type in ['LSTM', 'RNN']:
+            for i in range(60, len(scaled_data)):
+                X_test.append(scaled_data[i-60:i, 0])
+        elif self.model_type == 'Transformer':
+            for i in range(8, len(scaled_data)):
+                X_test.append(scaled_data[i-8:i, 0])
+        
         X_test = np.array(X_test)
         X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
 
@@ -84,18 +99,18 @@ class ModelHelper:
 
     # Main function
     def process_and_predict(self, df, num_days=30):
-        print(f"Processing data for {self.model_type} model")
+        print(f"Processing and predict for {self.model_type} model")
         # Print last 5 rows of the dataframe
         print(df.tail())
         if self.model_type == 'XGBoost':
             return self.generate_predictions(df, self.model)
         else:
-            scaler, last_60_days = self.preprocess_data(df)
-            if scaler is None or last_60_days is None or last_60_days.size == 0:
+            scaler, last_days = self.preprocess_data(df)
+            if scaler is None or last_days is None or last_days.size == 0:
                 return df, None, None, None
             
-            predictions, last_60_days_for_future = self.make_predictions(df, scaler)
-            future_dates, future_predictions = self.predict_future_prices(last_60_days, scaler, num_days=num_days)
+            predictions, last_days_for_future = self.make_predictions(df, scaler)
+            future_dates, future_predictions = self.predict_future_prices(last_days, scaler, num_days=num_days)
             # Print the first 5 predictions
             print(f"First 5 predictions: {future_predictions[:5]}")
             return predictions, future_dates, future_predictions
