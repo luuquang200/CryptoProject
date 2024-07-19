@@ -14,6 +14,7 @@ import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from data_utils import DataUtils, TimeFrame
 from model_helper import ModelHelper
+from MA import MovingAverages
 
 # Load environment variables từ file .env
 load_dotenv()
@@ -45,6 +46,8 @@ app.layout = html.Div(
                                         style={
                                             "textAlign": "center",
                                             "color": colors["text"],
+                                            "margin-top": "50px",
+                                            "margin-bottom": "50px",
                                         },
                                     )
                                 ]
@@ -54,10 +57,6 @@ app.layout = html.Div(
                 )
             ]
         ),
-        html.Br(),
-        html.Br(),
-        html.Br(),
-        html.Br(),
         html.Div(
             [  # Dropdown Div
                 dbc.Row(
@@ -268,51 +267,54 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
     predictions, future_dates, future_predictions = model_helper.process_and_predict(df, num_days=30)
 
     # Add actual and predicted prices to the graph
-    data = []
+    fig = go.Figure()
+
     if chart_name == "Line":
-        data.append(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
+        fig.add_trace(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
     elif chart_name == "Candlestick":
-        data.append(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
+        fig.add_trace(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
         # add mode markers+text to show the value of the last close price
         close_value = float(df_display['close'].iloc[-1])  # Convert the string to float before formatting
-        data.append(go.Scatter(x=[df_display.index[-1]], y=[close_value], mode='markers+text', name='Close Value',
+        fig.add_trace(go.Scatter(x=[df_display.index[-1]], y=[close_value], mode='markers+text', name='Close Value',
                             text=[f"${close_value:.2f}"], textposition="top right", marker=dict(color='white')))
     elif chart_name == "Line and Candlestick":
-        data.append(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
-        data.append(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
+        fig.add_trace(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
+        fig.add_trace(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
 
     # Add current predicted prices
     if display_days != "All":
-        data.append(go.Scatter(x=df_display.index, y=predictions[-int(display_days):], mode='lines', name='Predicted', line=dict(color='purple')))
+        fig.add_trace(go.Scatter(x=df_display.index, y=predictions[-int(display_days):], mode='lines', name='Predicted', line=dict(color='purple')))
     else:
-        data.append(go.Scatter(x=df_display.index, y=predictions, mode='lines', name='Predicted', line=dict(color='purple')))
+        fig.add_trace(go.Scatter(x=df_display.index, y=predictions, mode='lines', name='Predicted', line=dict(color='purple')))
 
     # Add future predicted prices
-    data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='yellow')))
+    fig.add_trace(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='yellow')))
     # add mode markers+text to show the value of the first future prediction
-    data.append(go.Scatter(x=[future_dates[0]], y=[future_predictions[0]], mode='markers+text', name='Future Prediction Value',
+    fig.add_trace(go.Scatter(x=[future_dates[0]], y=[future_predictions[0]], mode='markers+text', name='Future Prediction Value',
                            text=[f"${future_predictions[0]:.2f}"], textposition="top right", marker=dict(color='yellow')))
-    fig = {
-        'data': data,
-        'layout': go.Layout(
-            title=chart_name,
-            height=1000,
-            plot_bgcolor=colors['background'],
-            paper_bgcolor=colors['background'],
-            font={'color': colors['text']},
-            xaxis=dict(
-                range=[df_display.index.min(), future_dates.max()],
-                title='Time',
-                tickformat='%Y-%m-%d %H:%M',
-                rangeslider=dict(visible=False),
-            ),
-            yaxis={'title': 'Price'},
-        )
-    }
+
+    fig.update_layout(
+        title=chart_name,
+        height=1000,
+        plot_bgcolor=colors['background'],
+        paper_bgcolor=colors['background'],
+        font={'color': colors['text']},
+        xaxis=dict(
+            range=[df_display.index.min(), future_dates.max()],
+            title='Time',
+            tickformat='%Y-%m-%d %H:%M',
+            rangeslider=dict(visible=False),
+            showgrid=False,
+        ),
+        yaxis=dict(
+            title='Price',
+            showgrid=False  # Remove the grid from the y-axis
+        ),
+    )
 
     # Live price figure
-    live_price_fig = {
-        "data": [
+    live_price_fig = go.Figure(
+        data=[
             go.Indicator(
                 mode="number+delta",
                 value=float(df['close'].iloc[-1]),
@@ -326,13 +328,16 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
                 },
             )
         ],
-        "layout": go.Layout(
-            title={"text": f"Live {pair} Price", "y": 0.9, "x": 0.5, "xanchor": "center", "yanchor": "top"},
-            font=dict(color=colors['text']),
-            paper_bgcolor=colors['background'],
-            height=250,
-        ),
-    }
+    )
+    live_price_fig.update_layout(
+        title={"text": f"Live {pair} Price", "y": 0.9, "x": 0.5, "xanchor": "center", "yanchor": "top"},
+        font=dict(color=colors['text']),
+        paper_bgcolor=colors['background'],
+        height=250,
+    )
+
+    MovingAverages.add_trading_signals(df_display)
+    MovingAverages.add_trace_to_plot(fig, df_display)
 
     # Update xaxis range data
     xaxis_range = {'start': df_display.index.min(), 'end': future_dates.max()}
