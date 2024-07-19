@@ -14,7 +14,8 @@ import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from data_utils import DataUtils, TimeFrame
 from model_helper import ModelHelper
-
+import pandas as pd
+import os
 # Load environment variables từ file .env
 load_dotenv()
 
@@ -223,7 +224,6 @@ def switch_model(model_type):
     else:
         raise ValueError(f"Model type '{model_type}' not supported.")
 
-
 @app.callback(
     [Output("graph", "figure"), Output("live_price", "figure"), Output('xaxis-range', 'data'), Output('selected-pair', 'data')],
     [Input("submit-button-state", "n_clicks"), Input('interval-component', 'n_intervals')],
@@ -239,38 +239,29 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
     # Update model_helper based on selected model type
     model_helper = switch_model(model_type)
 
-    # Fetch new data
-    if global_df.empty:
-        print("Initializing data...")
-        global_df = DataUtils.init_df(pair, TimeFrame.day)
-    else:
-        if n_intervals > 0:
-            print("Updating data...")
-            global_df = DataUtils.update_df(pair, TimeFrame.day, global_df)
-
+    global_df = load_and_update_data(pair, model_type)
     df = global_df.copy()
-    print("\n....> Data: ")
-    print(df)
 
     if df.empty:
         return {}, {}, xaxis_range, pair
 
-    # Sorting the data
     df.sort_index(inplace=True)
 
-    # Limit the data based on the selected display_days
     if display_days != "All":
         df_display = df[-int(display_days):]
     else:
         df_display = df
 
-    # Generate predictions
-    predictions, future_dates, future_predictions = model_helper.process_and_predict(df, num_days=30)
+    predictions, future_dates, future_predictions = process_and_predict(model_helper, df, pair, num_days=30)
 
     # Add actual and predicted prices to the graph
     data = []
     if chart_name == "Line":
         data.append(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
+        # add mode markers+text to show the value of the last close price
+        close_value = float(df_display['close'].iloc[-1])  # Convert the string to float before formatting
+        data.append(go.Scatter(x=[df_display.index[-1]], y=[close_value], mode='markers+text', name='Close Value',
+                            text=[f"${close_value:.2f}"], textposition="top right", marker=dict(color='white')))
     elif chart_name == "Candlestick":
         data.append(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
         # add mode markers+text to show the value of the last close price
@@ -286,6 +277,9 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
         data.append(go.Scatter(x=df_display.index, y=predictions[-int(display_days):], mode='lines', name='Predicted', line=dict(color='purple')))
     else:
         data.append(go.Scatter(x=df_display.index, y=predictions, mode='lines', name='Predicted', line=dict(color='purple')))
+    # add mode markers to show the value of the last predicted price
+    data.append(go.Scatter(x=[df_display.index[-1]], y=[predictions[-1]], mode='markers+text', name='Predicted Value',
+                           text=[f"${predictions[-1]:.2f}"], textposition="top right", marker=dict(color='purple')))
 
     # Add future predicted prices
     data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='yellow')))
@@ -338,6 +332,63 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
     xaxis_range = {'start': df_display.index.min(), 'end': future_dates.max()}
 
     return fig, live_price_fig, xaxis_range, pair
+
+
+def load_data_from_csv(pair, model_type):
+    cache_dir = 'cache'
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+    
+    filename = os.path.join(cache_dir, f"{pair}-{model_type}.csv")
+    if os.path.isfile(filename):
+        df = pd.read_csv(filename, parse_dates=['timestamp'], index_col='timestamp')
+        return df
+    else:
+        return pd.DataFrame()
+
+def save_data_to_csv(df, pair, model_type):
+    cache_dir = 'cache'
+    if not os.path.exists(cache_dir):
+        os.makedirs(cache_dir)
+    
+    filename = os.path.join(cache_dir, f"{pair}-{model_type}.csv")
+    df.to_csv(filename)
+
+
+def load_and_update_data(pair, model_type):
+    df = load_data_from_csv(pair, model_type)
+    if df.empty:
+        print("Initializing data...")
+        df = DataUtils.init_df(pair, TimeFrame.day)
+    else:
+        print("Updating data...")
+        df = DataUtils.update_df(pair, TimeFrame.day, df)
+    save_data_to_csv(df, pair, model_type)  
+    return df
+
+
+def process_and_predict(model_helper, df, pair, num_days=30):
+    if df.empty:
+        print("DataFrame is empty. Initializing with default data.")
+        df = DataUtils.init_df(pair, TimeFrame.day)
+    
+    if 'predictions' not in df.columns:
+        print("Calculating predictions...")
+        if model_helper.model_type == 'XGBoost':
+            predictions, future_dates, future_predictions = model_helper.generate_predictions(df, model_helper.model)
+        else:
+            predictions, future_dates, future_predictions = model_helper.process_and_predict(df, num_days=num_days)
+        df['predictions'] = predictions
+        save_data_to_csv(df, pair, model_helper.model_type)
+    else:
+        print("Loading predictions from CSV...")
+        predictions = df['predictions'].values
+        if model_helper.model_type == 'XGBoost':
+            predictions, future_dates, future_predictions = model_helper.generate_predictions(df, model_helper.model)
+        else:
+            last_days_for_future = model_helper.preprocess_data(df)[1]
+            future_dates, future_predictions = model_helper.predict_future_prices(last_days_for_future, num_days=num_days)
+    return predictions, future_dates, future_predictions
 
 if __name__ == "__main__":
     app.run_server(debug=True)

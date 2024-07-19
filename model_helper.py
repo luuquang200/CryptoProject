@@ -10,6 +10,7 @@ class ModelHelper:
     def __init__(self, model_type='LSTM'):
         self.model_type = model_type
         self.model = self.load_model()
+        self.scaler = None  # Initialize scaler to None
 
     def load_model(self):
         if self.model_type == 'LSTM':
@@ -39,17 +40,17 @@ class ModelHelper:
         if len(df) < min_days:
             return None, None
 
-        scaler = MinMaxScaler(feature_range=(0, 1))
-        scaled_data = scaler.fit_transform(df['close'].values.reshape(-1, 1))
+        self.scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled_data = self.scaler.fit_transform(df['close'].values.reshape(-1, 1))
 
         if self.model_type in ['LSTM', 'RNN']:
             last_days = scaled_data[-60:].reshape(1, 60, 1)
         elif self.model_type == 'Transformer':
             last_days = scaled_data[-8:].reshape(1, 8, 1)
 
-        return scaler, last_days
+        return self.scaler, last_days
 
-    def predict_future_prices(self, last_days, scaler, num_days=30):
+    def predict_future_prices(self, last_days, num_days=30):
         start_date = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
         start_date += timedelta(days=1)
 
@@ -62,18 +63,16 @@ class ModelHelper:
             predicted_price_reshaped = predicted_price.reshape(1, 1, 1)
             last_days = np.append(last_days[:, 1:, :], predicted_price_reshaped, axis=1)
 
-        future_predictions = scaler.inverse_transform(np.array(future_predictions).reshape(-1, 1)).flatten()
+        future_predictions = self.scaler.inverse_transform(np.array(future_predictions).reshape(-1, 1)).flatten()
         return future_dates, future_predictions
 
-    def make_predictions(self, df, scaler):
+    def make_predictions(self, df):
         print(f"Making predictions for {self.model_type} model")
-        # Ensure at least 60 days of data for LSTM/RNN and 8 days for Transformer
         min_days = 60 if self.model_type in ['LSTM', 'RNN'] else 8
         if len(df) < min_days:
             return df, None
 
-        # Prepare data for prediction
-        scaled_data = scaler.transform(df['close'].values.reshape(-1, 1))
+        scaled_data = self.scaler.transform(df['close'].values.reshape(-1, 1))
         X_test = []
         if self.model_type in ['LSTM', 'RNN']:
             for i in range(60, len(scaled_data)):
@@ -85,36 +84,31 @@ class ModelHelper:
         X_test = np.array(X_test)
         X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
 
-        # Predict prices
         closing_price = self.model.predict(X_test)
-        closing_price = scaler.inverse_transform(closing_price)
+        closing_price = self.scaler.inverse_transform(closing_price)
 
-        # Adjust the length of predictions to match the length of the dataframe
         predictions = np.empty_like(df['close'])
         predictions[:] = np.nan
         predictions[-len(closing_price):] = closing_price.flatten()
 
-        # df['Predictions'] = predictions
         return predictions, X_test[-1:]
 
     # Main function
     def process_and_predict(self, df, num_days=30):
         print(f"Processing and predict for {self.model_type} model")
-        # Print last 5 rows of the dataframe
         print(df.tail())
         if self.model_type == 'XGBoost':
             return self.generate_predictions(df, self.model)
         else:
-            scaler, last_days = self.preprocess_data(df)
-            if scaler is None or last_days is None or last_days.size == 0:
-                return df, None, None, None
+            self.scaler, last_days = self.preprocess_data(df)
+            if self.scaler is None or last_days is None or last_days.size == 0:
+                return df, None, None
             
-            predictions, last_days_for_future = self.make_predictions(df, scaler)
-            future_dates, future_predictions = self.predict_future_prices(last_days, scaler, num_days=num_days)
-            # Print the first 5 predictions
+            predictions, last_days_for_future = self.make_predictions(df)
+            future_dates, future_predictions = self.predict_future_prices(last_days, num_days=num_days)
             print(f"First 5 predictions: {future_predictions[:5]}")
             return predictions, future_dates, future_predictions
-    
+
     # Xgboost     
     def add_technical_indicators(self, df):
         df['EMA_9'] = ta.ema(df['close'], length=9)
@@ -147,7 +141,7 @@ class ModelHelper:
         signal_line = macd.ewm(span=9, adjust=False).mean()
         return macd, signal_line
 
-    def relative_strength_idx(self, df, n=14):
+    def relative_strength_idx(self, df, n=14): 
         close = df['close']
         delta = close.diff()
         delta = delta[1:]
@@ -185,7 +179,7 @@ class ModelHelper:
         y_pred = model.predict(dmatrix_test)
 
         # Generate future predictions
-        future_dates = pd.date_range(start=df.index[-1], periods=30, freq='D')
+        future_dates = pd.date_range(start=df.index[-1] + pd.Timedelta(days=1), periods=30, freq='D')
         future_predictions = []
 
         last_known_data = df.iloc[-1]
