@@ -72,7 +72,7 @@ app.layout = html.Div(
                                 value="BTCUSDT",
                                 placeholder="Select cryptocurrency pair",
                             ),
-                            width={"size": 3, "offset": 1},
+                            width={"size": 2, "offset": 1},
                         ),
                         dbc.Col(  # Graph type
                             dcc.Dropdown(
@@ -84,8 +84,10 @@ app.layout = html.Div(
                                 ],
                                 value="Candlestick",
                                 style={"color": "#000000"},
+                                placeholder="Select chart type",
                             ),
                             width={"size": 2},
+                            
                         ),
                         dbc.Col(  # Model type
                             dcc.Dropdown(
@@ -97,6 +99,23 @@ app.layout = html.Div(
                                     {"label": "Transformer", "value": "Transformer"},
                                 ],
                                 value="LSTM",
+                                style={"color": "#000000"},
+                                placeholder="Select model type",
+                            ),
+                            
+                            width={"size": 2},
+                        ),
+                         dbc.Col(  # Technical indicator
+                            dcc.Dropdown(
+                                id="technical_indicator",
+                                options=[
+                                    {"label": "Moving average", "value": "MA"},
+                                    {"label": "Bollinger Bands", "value": "BB"},
+                                    {"label": "Relative Strength Index", "value": "RSI"},
+                                    {"label": "Moving Average Convergence Divergence", "value": "MACD"},
+                                ],
+                                value="None",
+                                placeholder="Select technical indicator",
                                 style={"color": "#000000"},
                             ),
                             width={"size": 2},
@@ -113,8 +132,10 @@ app.layout = html.Div(
                                 ],
                                 value=100,
                                 style={"color": "#000000"},
+                                placeholder="Select display days",
                             ),
                             width={"size": 2},
+                            
                         ),
                         dbc.Col(  # Button
                             dbc.Button(
@@ -126,7 +147,55 @@ app.layout = html.Div(
                             width={"size": 1},
                         ),
                     ]
-                )
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(  # MA types
+                            dcc.Dropdown(
+                                id='ma-type-dropdown',
+                                options=[{'label': ma, 'value': ma} for ma in ['SMA', 'EMA', 'WMA', 'VWMA']],
+                                value='SMA',
+                                style={"width": "100px", "margin": "16px auto", "display": "none"},
+                                clearable=False
+                            ),
+                            width={"size": 2, "offset": 1},
+                        ),
+                        dbc.Col(  # Short-term MA period
+                            dcc.Dropdown(
+                                id='period1-dropdown',
+                                options=[{'label': str(i), 'value': i} for i in [15, 20, 30]],
+                                value=20,
+                                style={"width": "100px", "margin": "16px auto", "display": "none"},
+                                clearable=False
+                            ),
+                            width={"size": 2},
+                            
+                        ),
+                        dbc.Col(  # Medium-term MA period
+                            dcc.Dropdown(
+                                id='period2-dropdown',
+                                options=[{'label': str(i), 'value': i} for i in [50, 80, 100]],
+                                value=50,
+                                style={"width": "100px", "margin": "16px auto", "display": "none"},
+                                clearable=False
+                            ),
+                            width={"size": 2},
+                        ),
+                         dbc.Col(  # Long-term MA period
+                            dcc.Dropdown(
+                                id='period3-dropdown',
+                                options=[{'label': str(i), 'value': i} for i in [120, 150, 200]],
+                                value=200,
+                                style={"width": "100px", "margin": "16px auto", "display": "none"},
+                                clearable=False
+                            ),
+                            width={"size": 2},
+                        ),
+                    ],
+                    justify="center",
+                    align="center",
+                ),
+                
             ]
         ),
         html.Br(),
@@ -226,9 +295,9 @@ def switch_model(model_type):
 @app.callback(
     [Output("graph", "figure"), Output("live_price", "figure"), Output('xaxis-range', 'data'), Output('selected-pair', 'data')],
     [Input("submit-button-state", "n_clicks"), Input('interval-component', 'n_intervals')],
-    [State("crypto_pair", "value"), State("chart", "value"), State("model_type", "value"), State("display_days", "value"), State('xaxis-range', 'data'), State('selected-pair', 'data')]
+    [State("crypto_pair", "value"), State("chart", "value"), State("model_type", "value"), State("display_days", "value"), State('xaxis-range', 'data'), State('selected-pair', 'data'), State('technical_indicator', 'value'), State('ma-type-dropdown', 'value'), State('period1-dropdown', 'value'), State('period2-dropdown', 'value'), State('period3-dropdown', 'value')]
 )
-def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display_days, xaxis_range, selected_pair):
+def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display_days, xaxis_range, selected_pair,  technical_indicator, ma_type, period1, period2, period3):
     global global_df
 
     # Reset global_df if the selected pair has changed
@@ -336,13 +405,32 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
         height=250,
     )
 
-    MovingAverages.add_trading_signals(df_display)
-    MovingAverages.add_trace_to_plot(fig, df_display)
+    if technical_indicator == 'MA':
+        MovingAverages.add_trading_signals(df_display, MA_type=ma_type, period1=period1, period2=period2, period3=period3)
+        MovingAverages.add_trace_to_plot(fig, df_display, period1=period1, period2=period2, period3=period3)
+
 
     # Update xaxis range data
     xaxis_range = {'start': df_display.index.min(), 'end': future_dates.max()}
 
     return fig, live_price_fig, xaxis_range, pair
+
+# Update the MA dropdown visibility based on the selected technical indicator
+@app.callback(
+    [
+        Output("ma-type-dropdown", "style"),
+        Output("period1-dropdown", "style"),
+        Output("period2-dropdown", "style"),
+        Output("period3-dropdown", "style")
+    ],
+    [Input("technical_indicator", "value")]
+)
+def update_dropdown_visibility(selected_indicator):
+    if selected_indicator == "MA":
+        return {"color": "#000000"}, {}, {}, {}
+    else:
+        return {"display": "none"}, {"display": "none"}, {"display": "none"}, {"display": "none"}
+    
 
 if __name__ == "__main__":
     app.run_server(debug=True)
