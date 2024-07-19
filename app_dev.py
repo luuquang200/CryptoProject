@@ -95,6 +95,7 @@ app.layout = html.Div(
                                     {"label": "LSTM", "value": "LSTM"},
                                     {"label": "RNN", "value": "RNN"},
                                     {"label": "XGBoost", "value": "XGBoost"},
+                                    {"label": "Transformer", "value": "Transformer"},
                                 ],
                                 value="LSTM",
                                 style={"color": "#000000"},
@@ -207,6 +208,8 @@ global_df = pd.DataFrame()
 LSTM_model = ModelHelper(model_type='LSTM')
 RNN_model = ModelHelper(model_type='RNN')
 XGBoost_model = ModelHelper(model_type='XGBoost')
+Transformer_model = ModelHelper(model_type='Transformer')
+
 
 def switch_model(model_type):
     if model_type == 'LSTM':
@@ -215,6 +218,8 @@ def switch_model(model_type):
         return RNN_model
     elif model_type == 'XGBoost':
         return XGBoost_model
+    elif model_type == 'Transformer':
+        return Transformer_model
     else:
         raise ValueError(f"Model type '{model_type}' not supported.")
 
