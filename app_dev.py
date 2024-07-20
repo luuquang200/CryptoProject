@@ -348,7 +348,7 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
 
     # Add actual and predicted prices to the graph
     if chart_name == "Line":
-        fig.add_trace(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
+        fig.add_trace(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='white')))
         # add mode markers+text to show the value of the last close price
         close_value = float(df_display['close'].iloc[-1])  # Convert the string to float before formatting
         fig.add_trace(go.Scatter(x=[df_display.index[-1]], y=[close_value], mode='markers+text', name='Close Value',
@@ -361,7 +361,7 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
                                  text=[f"${close_value:.2f}"], textposition="top right", marker=dict(color='white')))
     elif chart_name == "Line and Candlestick":
         fig.add_trace(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
-        fig.add_trace(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
+        fig.add_trace(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='white')))
 
     # Add current predicted prices
     if display_days != "All":

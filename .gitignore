@@ -1,5 +1,6 @@
 .vim
 # .env
 venv
+cache
 .vscode
 __pycache__
