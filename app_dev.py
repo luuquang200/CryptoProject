@@ -13,6 +13,7 @@ from keras.models import load_model
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from BB import BollingerBands
+from MACD import MovingAverageConvergenceDivergence
 from ROC import RateOfChange
 from RS import ResistanceSupport
 from RSI import RelativeStrengthIndex
@@ -461,6 +462,20 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
     elif technical_indicator == 'RS':
         df_display = ResistanceSupport.calculate_resistance_support(df_display, period=20)
         fig = ResistanceSupport.add_resistance_support_trace(fig, df_display, period=20)
+    elif technical_indicator == 'MACD':
+        # Adding a secondary y-axis for MACD
+        fig.update_layout(
+            yaxis2=dict(
+                title="MACD",
+                overlaying='y',
+                side='right',
+                showgrid=False
+            )
+        )
+        # Assuming df_display is your DataFrame with the stock data
+        df_display = MovingAverageConvergenceDivergence.calculate_macd(df_display, short_period=12, long_period=26, signal_period=9, column='close')
+        # Add MACD traces to the figure
+        fig = MovingAverageConvergenceDivergence.add_macd_trace(fig, df_display)
 
 
     # Update xaxis range data
