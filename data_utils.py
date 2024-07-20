@@ -84,3 +84,5 @@ class DataUtils:
         scaler.fit(close_prices)
         
         return scaler
+    
+    
