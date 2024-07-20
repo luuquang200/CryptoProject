@@ -13,6 +13,7 @@ from keras.models import load_model
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from BB import BollingerBands
+from ROC import RateOfChange
 from RSI import RelativeStrengthIndex
 from data_utils import DataUtils, TimeFrame
 from model_helper import ModelHelper
@@ -115,6 +116,7 @@ app.layout = html.Div(
                                     {"label": "Moving average", "value": "MA"},
                                     {"label": "Bollinger Bands", "value": "BB"},
                                     {"label": "Relative Strength Index", "value": "RSI"},
+                                    {"label": "Rate of Change", "value": "ROC"},
                                     {"label": "Moving Average Convergence Divergence", "value": "MACD"},
                                 ],
                                 value="None",
@@ -441,6 +443,19 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
         df_display = BollingerBands.add_BB_signals(df_display, period=20)
         fig = BollingerBands.add_BB_trace(fig, df_display, period=20)
         fig = BollingerBands.add_BB_signal_trace(fig, df_display)
+    elif technical_indicator == 'ROC':
+        # Adding a secondary y-axis for ROC
+        fig.update_layout(
+            yaxis2=dict(
+                title="ROC",
+                overlaying='y',
+                side='right',
+                showgrid=False
+            )
+        )
+        df_display = RateOfChange.add_ROC_signals(df_display, period=14)
+        fig = RateOfChange.add_ROC_trace(fig, df_display, period=14)
+        fig = RateOfChange.add_ROC_signal_trace(fig, df_display)
 
 
     # Update xaxis range data
