@@ -278,9 +278,8 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
     else:
         data.append(go.Scatter(x=df_display.index, y=predictions, mode='lines', name='Predicted', line=dict(color='purple')))
     # add mode markers to show the value of the last predicted price
-    data.append(go.Scatter(x=[df_display.index[-1]], y=[predictions[-1]], mode='markers+text', name='Predicted Value',
-                           text=[f"${predictions[-1]:.2f}"], textposition="top right", marker=dict(color='purple')))
-
+    data.append(go.Scatter(x=[df_display.index[-1]], y=[predictions[-1]], mode='markers', name='Predicted Value', marker=dict(color='purple')))
+    
     # Add future predicted prices
     data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='yellow')))
     # add mode markers+text to show the value of the first future prediction

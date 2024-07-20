@@ -44,22 +44,35 @@ class DataUtils:
         else:
             raise ValueError("Invalid timeframe")
         
-
     @staticmethod
     def update_df(symbol, timeframe, df):
-        if timeframe == TimeFrame.minute:
-            new_data = DataUtils.get_historical_klines(symbol, Client.KLINE_INTERVAL_1MINUTE, "1 minute ago UTC")
-        elif timeframe == TimeFrame.hour:
-            new_data = DataUtils.get_historical_klines(symbol, Client.KLINE_INTERVAL_1HOUR, "1 hour ago UTC")
-        elif timeframe == TimeFrame.day:
-            new_data = DataUtils.get_historical_klines(symbol, Client.KLINE_INTERVAL_1DAY, "1 day ago UTC")
-        else:
-            raise ValueError("Invalid timeframe")
-       
-        df = pd.concat([df, new_data]).drop_duplicates()
-        df = df[~df.index.duplicated(keep='last')]
+        timeframe_mapping = {
+            TimeFrame.minute: Client.KLINE_INTERVAL_1MINUTE,
+            TimeFrame.hour: Client.KLINE_INTERVAL_1HOUR,
+            TimeFrame.day: Client.KLINE_INTERVAL_1DAY
+        }
 
-        return df
+        if timeframe not in timeframe_mapping:
+            raise ValueError("Invalid timeframe")
+
+        new_data = DataUtils.get_historical_klines(symbol, timeframe_mapping[timeframe], "1 day ago UTC")
+
+        # Drop predictions column from df if exists and concatenate with new_data
+        df_no_pred = df.drop(columns=['predictions'], errors='ignore')
+        combined_df = pd.concat([df_no_pred, new_data]).drop_duplicates(keep='last')
+
+        # Re-attach predictions column to combined_df
+        if 'predictions' in df.columns:
+            combined_df = combined_df.join(df[['predictions']], how='left')
+
+        # Ensure no duplicate indices remain
+        combined_df = combined_df[~combined_df.index.duplicated(keep='last')]
+
+        print('Data updated')
+        print(combined_df.tail())
+
+        return combined_df
+
     
     @staticmethod
     def get_scaler(pair, df):
