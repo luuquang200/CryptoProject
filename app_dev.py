@@ -12,8 +12,11 @@ from dotenv import load_dotenv
 from keras.models import load_model
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
+from BB import BollingerBands
+from RSI import RelativeStrengthIndex
 from data_utils import DataUtils, TimeFrame
 from model_helper import ModelHelper
+from MA import MovingAverages
 
 # Load environment variables từ file .env
 load_dotenv()
@@ -45,6 +48,8 @@ app.layout = html.Div(
                                         style={
                                             "textAlign": "center",
                                             "color": colors["text"],
+                                            "margin-top": "50px",
+                                            "margin-bottom": "50px",
                                         },
                                     )
                                 ]
@@ -54,10 +59,6 @@ app.layout = html.Div(
                 )
             ]
         ),
-        html.Br(),
-        html.Br(),
-        html.Br(),
-        html.Br(),
         html.Div(
             [  # Dropdown Div
                 dbc.Row(
@@ -73,7 +74,7 @@ app.layout = html.Div(
                                 value="BTCUSDT",
                                 placeholder="Select cryptocurrency pair",
                             ),
-                            width={"size": 3, "offset": 1},
+                            width={"size": 2, "offset": 1},
                         ),
                         dbc.Col(  # Graph type
                             dcc.Dropdown(
@@ -85,8 +86,10 @@ app.layout = html.Div(
                                 ],
                                 value="Candlestick",
                                 style={"color": "#000000"},
+                                placeholder="Select chart type",
                             ),
                             width={"size": 2},
+                            
                         ),
                         dbc.Col(  # Model type
                             dcc.Dropdown(
@@ -98,6 +101,23 @@ app.layout = html.Div(
                                     {"label": "Transformer", "value": "Transformer"},
                                 ],
                                 value="LSTM",
+                                style={"color": "#000000"},
+                                placeholder="Select model type",
+                            ),
+                            
+                            width={"size": 2},
+                        ),
+                         dbc.Col(  # Technical indicator
+                            dcc.Dropdown(
+                                id="technical_indicator",
+                                options=[
+                                    {"label": "Moving average", "value": "MA"},
+                                    {"label": "Bollinger Bands", "value": "BB"},
+                                    {"label": "Relative Strength Index", "value": "RSI"},
+                                    {"label": "Moving Average Convergence Divergence", "value": "MACD"},
+                                ],
+                                value="None",
+                                placeholder="Select technical indicator",
                                 style={"color": "#000000"},
                             ),
                             width={"size": 2},
@@ -114,8 +134,10 @@ app.layout = html.Div(
                                 ],
                                 value=100,
                                 style={"color": "#000000"},
+                                placeholder="Select display days",
                             ),
                             width={"size": 2},
+                            
                         ),
                         dbc.Col(  # Button
                             dbc.Button(
@@ -127,7 +149,55 @@ app.layout = html.Div(
                             width={"size": 1},
                         ),
                     ]
-                )
+                ),
+                dbc.Row(
+                    [
+                        dbc.Col(  # MA types
+                            dcc.Dropdown(
+                                id='ma-type-dropdown',
+                                options=[{'label': ma, 'value': ma} for ma in ['SMA', 'EMA', 'WMA', 'VWMA']],
+                                value='SMA',
+                                style={"width": "100px", "margin": "16px auto", "display": "none"},
+                                clearable=False
+                            ),
+                            width={"size": 2, "offset": 1},
+                        ),
+                        dbc.Col(  # Short-term MA period
+                            dcc.Dropdown(
+                                id='period1-dropdown',
+                                options=[{'label': str(i), 'value': i} for i in [15, 20, 30]],
+                                value=20,
+                                style={"width": "100px", "margin": "16px auto", "display": "none"},
+                                clearable=False
+                            ),
+                            width={"size": 2},
+                            
+                        ),
+                        dbc.Col(  # Medium-term MA period
+                            dcc.Dropdown(
+                                id='period2-dropdown',
+                                options=[{'label': str(i), 'value': i} for i in [50, 80, 100]],
+                                value=50,
+                                style={"width": "100px", "margin": "16px auto", "display": "none"},
+                                clearable=False
+                            ),
+                            width={"size": 2},
+                        ),
+                         dbc.Col(  # Long-term MA period
+                            dcc.Dropdown(
+                                id='period3-dropdown',
+                                options=[{'label': str(i), 'value': i} for i in [120, 150, 200]],
+                                value=200,
+                                style={"width": "100px", "margin": "16px auto", "display": "none"},
+                                clearable=False
+                            ),
+                            width={"size": 2},
+                        ),
+                    ],
+                    justify="center",
+                    align="center",
+                ),
+                
             ]
         ),
         html.Br(),
@@ -225,11 +295,30 @@ def switch_model(model_type):
 
 
 @app.callback(
-    [Output("graph", "figure"), Output("live_price", "figure"), Output('xaxis-range', 'data'), Output('selected-pair', 'data')],
-    [Input("submit-button-state", "n_clicks"), Input('interval-component', 'n_intervals')],
-    [State("crypto_pair", "value"), State("chart", "value"), State("model_type", "value"), State("display_days", "value"), State('xaxis-range', 'data'), State('selected-pair', 'data')]
+    [
+        Output("graph", "figure"), 
+        Output("live_price", "figure"), 
+        Output('xaxis-range', 'data'), Output('selected-pair', 'data')
+    ],
+    [
+        Input("submit-button-state", "n_clicks"), 
+        Input('interval-component', 'n_intervals')
+    ],
+    [
+        State("crypto_pair", "value"), 
+        State("chart", "value"), 
+        State("model_type", "value"), 
+        State("display_days", "value"), 
+        State('xaxis-range', 'data'), 
+        State('selected-pair', 'data'), 
+        State('technical_indicator', 'value'), 
+        State('ma-type-dropdown', 'value'), 
+        State('period1-dropdown', 'value'), 
+        State('period2-dropdown', 'value'), 
+        State('period3-dropdown', 'value')
+    ]
 )
-def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display_days, xaxis_range, selected_pair):
+def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display_days, xaxis_range, selected_pair, technical_indicator, ma_type, period1, period2, period3):
     global global_df
 
     # Reset global_df if the selected pair has changed
@@ -268,51 +357,54 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
     predictions, future_dates, future_predictions = model_helper.process_and_predict(df, num_days=30)
 
     # Add actual and predicted prices to the graph
-    data = []
+    fig = go.Figure()
+
     if chart_name == "Line":
-        data.append(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
+        fig.add_trace(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
     elif chart_name == "Candlestick":
-        data.append(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
+        fig.add_trace(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
         # add mode markers+text to show the value of the last close price
         close_value = float(df_display['close'].iloc[-1])  # Convert the string to float before formatting
-        data.append(go.Scatter(x=[df_display.index[-1]], y=[close_value], mode='markers+text', name='Close Value',
+        fig.add_trace(go.Scatter(x=[df_display.index[-1]], y=[close_value], mode='markers+text', name='Close Value',
                             text=[f"${close_value:.2f}"], textposition="top right", marker=dict(color='white')))
     elif chart_name == "Line and Candlestick":
-        data.append(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
-        data.append(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
+        fig.add_trace(go.Candlestick(x=df_display.index, open=df_display['open'], high=df_display['high'], low=df_display['low'], close=df_display['close'], name='Candlestick'))
+        fig.add_trace(go.Scatter(x=df_display.index, y=df_display['close'], mode='lines', name='Close', line=dict(color='blue')))
 
     # Add current predicted prices
     if display_days != "All":
-        data.append(go.Scatter(x=df_display.index, y=predictions[-int(display_days):], mode='lines', name='Predicted', line=dict(color='purple')))
+        fig.add_trace(go.Scatter(x=df_display.index, y=predictions[-int(display_days):], mode='lines', name='Predicted', line=dict(color='purple')))
     else:
-        data.append(go.Scatter(x=df_display.index, y=predictions, mode='lines', name='Predicted', line=dict(color='purple')))
+        fig.add_trace(go.Scatter(x=df_display.index, y=predictions, mode='lines', name='Predicted', line=dict(color='purple')))
 
     # Add future predicted prices
-    data.append(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='yellow')))
+    fig.add_trace(go.Scatter(x=future_dates, y=future_predictions, mode='lines', name='Future Prediction', line=dict(color='yellow')))
     # add mode markers+text to show the value of the first future prediction
-    data.append(go.Scatter(x=[future_dates[0]], y=[future_predictions[0]], mode='markers+text', name='Future Prediction Value',
+    fig.add_trace(go.Scatter(x=[future_dates[0]], y=[future_predictions[0]], mode='markers+text', name='Future Prediction Value',
                            text=[f"${future_predictions[0]:.2f}"], textposition="top right", marker=dict(color='yellow')))
-    fig = {
-        'data': data,
-        'layout': go.Layout(
-            title=chart_name,
-            height=1000,
-            plot_bgcolor=colors['background'],
-            paper_bgcolor=colors['background'],
-            font={'color': colors['text']},
-            xaxis=dict(
-                range=[df_display.index.min(), future_dates.max()],
-                title='Time',
-                tickformat='%Y-%m-%d %H:%M',
-                rangeslider=dict(visible=False),
-            ),
-            yaxis={'title': 'Price'},
-        )
-    }
+
+    fig.update_layout(
+        title=chart_name,
+        height=1000,
+        plot_bgcolor=colors['background'],
+        paper_bgcolor=colors['background'],
+        font={'color': colors['text']},
+        xaxis=dict(
+            range=[df_display.index.min(), future_dates.max()],
+            title='Time',
+            tickformat='%Y-%m-%d %H:%M',
+            rangeslider=dict(visible=False),
+            showgrid=False,
+        ),
+        yaxis=dict(
+            title='Price',
+            showgrid=False  # Remove the grid from the y-axis
+        ),
+    )
 
     # Live price figure
-    live_price_fig = {
-        "data": [
+    live_price_fig = go.Figure(
+        data=[
             go.Indicator(
                 mode="number+delta",
                 value=float(df['close'].iloc[-1]),
@@ -326,18 +418,58 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
                 },
             )
         ],
-        "layout": go.Layout(
-            title={"text": f"Live {pair} Price", "y": 0.9, "x": 0.5, "xanchor": "center", "yanchor": "top"},
-            font=dict(color=colors['text']),
-            paper_bgcolor=colors['background'],
-            height=250,
-        ),
-    }
+    )
+    live_price_fig.update_layout(
+        title={"text": f"Live {pair} Price", "y": 0.9, "x": 0.5, "xanchor": "center", "yanchor": "top"},
+        font=dict(color=colors['text']),
+        paper_bgcolor=colors['background'],
+        height=250,
+    )
+
+    if technical_indicator == 'MA':
+        MovingAverages.add_trading_signals(df_display, MA_type=ma_type, period1=period1, period2=period2, period3=period3)
+        fig = MovingAverages.add_trace_to_plot(fig, df_display, period1=period1, period2=period2, period3=period3)
+    elif technical_indicator == 'RSI':
+        # Adding a secondary y-axis for RSI
+        fig.update_layout(
+            yaxis2=dict(
+                title="RSI",
+                overlaying='y',
+                side='right',
+                range=[0, 100],  # RSI values range between 0 and 100
+                showgrid=False
+            )
+        )
+        df_display = RelativeStrengthIndex.add_RSI_signals(df_display, period=14)
+        fig = RelativeStrengthIndex.add_RSI_trace(fig, df_display, period=14)
+        fig = RelativeStrengthIndex.add_RSI_signal_trace(fig, df_display, period=14)
+    elif technical_indicator == 'BB':
+        df_display = BollingerBands.add_BB_signals(df_display, period=20)
+        fig = BollingerBands.add_BB_trace(fig, df_display, period=20)
+        fig = BollingerBands.add_BB_signal_trace(fig, df_display)
+
 
     # Update xaxis range data
     xaxis_range = {'start': df_display.index.min(), 'end': future_dates.max()}
 
     return fig, live_price_fig, xaxis_range, pair
+
+# Update the MA dropdown visibility based on the selected technical indicator
+@app.callback(
+    [
+        Output("ma-type-dropdown", "style"),
+        Output("period1-dropdown", "style"),
+        Output("period2-dropdown", "style"),
+        Output("period3-dropdown", "style")
+    ],
+    [Input("technical_indicator", "value")]
+)
+def update_dropdown_visibility(selected_indicator):
+    if selected_indicator == "MA":
+        return {"color": "#000000"}, {}, {}, {}
+    else:
+        return {"display": "none"}, {"display": "none"}, {"display": "none"}, {"display": "none"}
+    
 
 if __name__ == "__main__":
     app.run_server(debug=True)
