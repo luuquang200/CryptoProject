@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from keras.models import load_model
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
+from BB import BollingerBands
 from RSI import RelativeStrengthIndex
 from data_utils import DataUtils, TimeFrame
 from model_helper import ModelHelper
@@ -442,6 +443,10 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
         df_display = RelativeStrengthIndex.add_RSI_signals(df_display, period=14)
         fig = RelativeStrengthIndex.add_RSI_trace(fig, df_display, period=14)
         fig = RelativeStrengthIndex.add_RSI_signal_trace(fig, df_display, period=14)
+    elif technical_indicator == 'BB':
+        df_display = BollingerBands.add_BB_signals(df_display, period=20)
+        fig = BollingerBands.add_BB_trace(fig, df_display, period=20)
+        fig = BollingerBands.add_BB_signal_trace(fig, df_display)
 
 
     # Update xaxis range data
