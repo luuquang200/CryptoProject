@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from keras.models import load_model
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
+from RSI import RelativeStrengthIndex
 from data_utils import DataUtils, TimeFrame
 from model_helper import ModelHelper
 from MA import MovingAverages
@@ -293,11 +294,30 @@ def switch_model(model_type):
 
 
 @app.callback(
-    [Output("graph", "figure"), Output("live_price", "figure"), Output('xaxis-range', 'data'), Output('selected-pair', 'data')],
-    [Input("submit-button-state", "n_clicks"), Input('interval-component', 'n_intervals')],
-    [State("crypto_pair", "value"), State("chart", "value"), State("model_type", "value"), State("display_days", "value"), State('xaxis-range', 'data'), State('selected-pair', 'data'), State('technical_indicator', 'value'), State('ma-type-dropdown', 'value'), State('period1-dropdown', 'value'), State('period2-dropdown', 'value'), State('period3-dropdown', 'value')]
+    [
+        Output("graph", "figure"), 
+        Output("live_price", "figure"), 
+        Output('xaxis-range', 'data'), Output('selected-pair', 'data')
+    ],
+    [
+        Input("submit-button-state", "n_clicks"), 
+        Input('interval-component', 'n_intervals')
+    ],
+    [
+        State("crypto_pair", "value"), 
+        State("chart", "value"), 
+        State("model_type", "value"), 
+        State("display_days", "value"), 
+        State('xaxis-range', 'data'), 
+        State('selected-pair', 'data'), 
+        State('technical_indicator', 'value'), 
+        State('ma-type-dropdown', 'value'), 
+        State('period1-dropdown', 'value'), 
+        State('period2-dropdown', 'value'), 
+        State('period3-dropdown', 'value')
+    ]
 )
-def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display_days, xaxis_range, selected_pair,  technical_indicator, ma_type, period1, period2, period3):
+def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display_days, xaxis_range, selected_pair, technical_indicator, ma_type, period1, period2, period3):
     global global_df
 
     # Reset global_df if the selected pair has changed
@@ -407,7 +427,21 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
 
     if technical_indicator == 'MA':
         MovingAverages.add_trading_signals(df_display, MA_type=ma_type, period1=period1, period2=period2, period3=period3)
-        MovingAverages.add_trace_to_plot(fig, df_display, period1=period1, period2=period2, period3=period3)
+        fig = MovingAverages.add_trace_to_plot(fig, df_display, period1=period1, period2=period2, period3=period3)
+    elif technical_indicator == 'RSI':
+        # Adding a secondary y-axis for RSI
+        fig.update_layout(
+            yaxis2=dict(
+                title="RSI",
+                overlaying='y',
+                side='right',
+                range=[0, 100],  # RSI values range between 0 and 100
+                showgrid=False
+            )
+        )
+        df_display = RelativeStrengthIndex.add_RSI_signals(df_display, period=14)
+        fig = RelativeStrengthIndex.add_RSI_trace(fig, df_display, period=14)
+        fig = RelativeStrengthIndex.add_RSI_signal_trace(fig, df_display, period=14)
 
 
     # Update xaxis range data
