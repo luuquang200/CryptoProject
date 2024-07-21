@@ -394,7 +394,7 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
         xaxis=dict(
             range=[df_display.index.min(), future_dates.max()],
             title='Time',
-            tickformat='%Y-%m-%d %H:%M',
+            tickformat='%Y-%m-%d',
             rangeslider=dict(visible=False),
             showgrid=False,
         ),
