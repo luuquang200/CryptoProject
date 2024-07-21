@@ -17,6 +17,7 @@ from MACD import MovingAverageConvergenceDivergence
 from ROC import RateOfChange
 from RS import ResistanceSupport
 from RSI import RelativeStrengthIndex
+from SCN import SimpleClassificationNetwork
 from data_utils import DataUtils, TimeFrame
 from model_helper import ModelHelper
 import os
@@ -116,6 +117,7 @@ app.layout = html.Div(
                                 id="technical_indicator",
                                 options=[
                                     {"label": "Moving average", "value": "MA"},
+                                    {"label": "Simple Classification Network", "value": "SCN"},
                                     {"label": "Bollinger Bands", "value": "BB"},
                                     {"label": "Relative Strength Index", "value": "RSI"},
                                     {"label": "Rate of Change", "value": "ROC"},
@@ -285,6 +287,7 @@ LSTM_model = ModelHelper(model_type='LSTM')
 RNN_model = ModelHelper(model_type='RNN')
 XGBoost_model = ModelHelper(model_type='XGBoost')
 Transformer_model = ModelHelper(model_type='Transformer')
+simple_classification_network = SimpleClassificationNetwork()
 
 
 def switch_model(model_type):
@@ -476,7 +479,9 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
         df_display = MovingAverageConvergenceDivergence.calculate_macd(df_display, short_period=12, long_period=26, signal_period=9, column='close')
         # Add MACD traces to the figure
         fig = MovingAverageConvergenceDivergence.add_macd_trace(fig, df_display)
-
+    elif technical_indicator == 'SCN':
+        df_display = simple_classification_network.generate_signals(df_display)
+        fig = simple_classification_network.add_signal_trace(fig, df_display)
 
     # Update xaxis range data
     xaxis_range = {'start': df_display.index.min(), 'end': future_dates.max()}
