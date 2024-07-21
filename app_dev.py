@@ -117,14 +117,14 @@ app.layout = html.Div(
                             dcc.Dropdown(
                                 id="technical_indicator",
                                 options=[
+                                    {"label": "Simple Classification Network", "value": "SCN"},
+                                    {"label": "CNN", "value": "CNN"},
                                     {"label": "Moving average", "value": "MA"},
                                     {"label": "Bollinger Bands", "value": "BB"},
                                     {"label": "Relative Strength Index", "value": "RSI"},
                                     {"label": "Rate of Change", "value": "ROC"},
                                     {"label": "Resistance and Support", "value": "RS"},
                                     {"label": "Moving Average Convergence Divergence", "value": "MACD"},
-                                    {"label": "Simple Classification Network", "value": "SCN"},
-                                    {"label": "Convolutional Neural Network", "value": "CNN"},
                                 ],
                                 value="None",
                                 placeholder="Select technical indicator",
