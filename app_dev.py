@@ -13,6 +13,7 @@ from keras.models import load_model
 import tensorflow as tf
 from sklearn.preprocessing import MinMaxScaler
 from BB import BollingerBands
+from CNN import TradingSignalCNN
 from MACD import MovingAverageConvergenceDivergence
 from ROC import RateOfChange
 from RS import ResistanceSupport
@@ -121,6 +122,7 @@ app.layout = html.Div(
                                     {"label": "Rate of Change", "value": "ROC"},
                                     {"label": "Resistance and Support", "value": "RS"},
                                     {"label": "Moving Average Convergence Divergence", "value": "MACD"},
+                                    {"label": "CNN", "value": "CNN"},
                                 ],
                                 value="None",
                                 placeholder="Select technical indicator",
@@ -285,6 +287,7 @@ LSTM_model = ModelHelper(model_type='LSTM')
 RNN_model = ModelHelper(model_type='RNN')
 XGBoost_model = ModelHelper(model_type='XGBoost')
 Transformer_model = ModelHelper(model_type='Transformer')
+CNN_model = TradingSignalCNN()
 
 
 def switch_model(model_type):
@@ -476,6 +479,10 @@ def graph_generator(n_clicks, n_intervals, pair, chart_name, model_type, display
         df_display = MovingAverageConvergenceDivergence.calculate_macd(df_display, short_period=12, long_period=26, signal_period=9, column='close')
         # Add MACD traces to the figure
         fig = MovingAverageConvergenceDivergence.add_macd_trace(fig, df_display)
+    elif technical_indicator == 'CNN':
+        df_display = CNN_model.generate_signals(df_display)
+        fig = CNN_model.add_signal_trace(fig, df_display)
+
 
 
     # Update xaxis range data
